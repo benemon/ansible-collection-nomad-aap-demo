@@ -11,6 +11,9 @@ collection's inventory plugin lists the Nomad clients and allocations.
 | `execution-environment.yml` | ansible-builder v3 definition: AAP 2.7 `ee-minimal-rhel9` plus `benemon.nomad` and `nomadpy[exec]` |
 | `deploy_container.yml` | Registers or purges the job and reports each running allocation's address |
 | `templates/container.nomad.hcl.j2` | The jobspec: one group, one podman task, a dynamic port mapped to `container_port` |
+| `deploy_worker.yml` | Registers or purges a heartbeat worker with no exposed ports, in a chosen node pool |
+| `templates/worker.nomad.hcl.j2` | The worker's jobspec: a Python loop that writes a counter and timestamp to `/tmp/heartbeat` every 5 seconds |
+| `verify_worker.yml` | Runs inside the worker's allocations over the `benemon.nomad.nomad_exec` connection and checks the heartbeat advances |
 | `inventory/cluster.nomad.yml` | `benemon.nomad.nomad` inventory: client nodes and the allocations of the `default` namespace |
 | `nomad/aap-demo.policy.hcl` | ACL policy for the token AAP uses |
 | `aap/nomad-credential-type.yml` | Inputs and injectors of the AAP credential type that carries the Nomad connection |
@@ -35,8 +38,8 @@ nomad acl policy apply aap-demo nomad/aap-demo.policy.hcl
 nomad acl token create -name aap-demo -type client -policy aap-demo
 ```
 
-The policy allows submitting, reading and listing jobs in `default`, and reading
-nodes for the inventory plugin.
+The policy allows submitting, reading, listing and exec into jobs in `default`,
+and reading nodes for the inventory plugin.
 
 ## AAP
 
@@ -67,3 +70,21 @@ job. Optional variables are `container_port` (default `80`) and `instances`
 
 The play runs on `localhost` and talks only to the Nomad API; the inventory
 is there to show the cluster from AAP and is not a target of this play.
+
+## Heartbeat worker
+
+`deploy_worker.yml` runs a worker that opens no ports. Its variables are
+`job_name` (default `heartbeat`), `node_pool` (default `default`) and
+`job_state`.
+
+`verify_worker.yml` targets the inventory group `nomad_job_<job_name>`, so
+the inventory has to be synced after the worker is deployed; *Update on
+launch* on the inventory source does that. For each allocation it reads the
+heartbeat, waits for the counter to advance, writes the allocation ID into the
+task and reads it back. Pass the same `job_name` to both playbooks; a name
+with characters other than letters, digits and underscores is sanitised in
+the group name.
+
+The checks use `ansible.builtin.raw`. Modules send their payload over stdin,
+and the podman driver never closes stdin in an exec session, so a module
+task waits until it times out.

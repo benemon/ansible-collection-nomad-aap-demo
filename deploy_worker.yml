@@ -1,0 +1,33 @@
+- name: Deploy a heartbeat worker to Nomad with no exposed ports
+  hosts: localhost
+  gather_facts: false
+  vars:
+    job_name: heartbeat
+    node_pool: default
+    job_state: present
+  tasks:
+    - name: Register the job and wait for its deployment
+      benemon.nomad.nomad_job:
+        jobspec: "{{ lookup('ansible.builtin.template', 'worker.nomad.hcl.j2') }}"
+      when: job_state == 'present'
+
+    - name: Stop the job and remove it from the server
+      benemon.nomad.nomad_job:
+        name: "{{ job_name }}"
+        state: absent
+        purge: true
+      when: job_state == 'absent'
+
+    - name: Read the job's allocations
+      benemon.nomad.nomad_allocation_info:
+        job: "{{ job_name }}"
+      register: allocs
+      when: job_state == 'present'
+
+    - name: Report where the worker runs
+      ansible.builtin.debug:
+        msg: "{{ item.ID[:8] }} on {{ item.NodeName }}"
+      loop: "{{ allocs.allocations | selectattr('ClientStatus', 'eq', 'running') }}"
+      loop_control:
+        label: "{{ item.ID[:8] }}"
+      when: job_state == 'present'

@@ -1,0 +1,36 @@
+job "{{ job_name }}" {
+  datacenters = ["*"]
+  type        = "service"
+  node_pool   = "{{ node_pool }}"
+
+  group "worker" {
+    task "heartbeat" {
+      driver = "podman"
+
+      config {
+        image   = "docker.io/library/python:3.12-alpine"
+        command = "python3"
+        args    = ["-u", "/local/heartbeat.py"]
+      }
+
+      template {
+        destination = "local/heartbeat.py"
+        data        = <<EOF
+import time
+
+beats = 0
+while True:
+    beats += 1
+    with open("/tmp/heartbeat", "w") as f:
+        f.write(f"{beats} {int(time.time())}\n")
+    time.sleep(5)
+EOF
+      }
+
+      resources {
+        cpu    = 100
+        memory = 64
+      }
+    }
+  }
+}
