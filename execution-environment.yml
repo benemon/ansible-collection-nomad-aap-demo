@@ -1,0 +1,21 @@
+---
+version: 3
+
+images:
+  base_image:
+    name: registry.redhat.io/ansible-automation-platform-27/ee-minimal-rhel9@sha256:122b62d931be765ed6ee1f2c75d39cfeba819e507f7e777828dd7f1329f62db1
+
+dependencies:
+  # benemon.nomad requires ansible-core >=2.19; the AAP 2.7 base ships 2.16.
+  ansible_core:
+    package_pip: ansible-core>=2.19,<2.20
+  ansible_runner:
+    package_pip: ansible-runner
+  galaxy:
+    collections:
+      - name: benemon.nomad
+        version: ">=0.2.0"
+  # benemon.nomad declares python: requirements.txt, so builder pulls nomadpy[exec] from it.
+
+options:
+  package_manager_path: /usr/bin/microdnf

@@ -1,0 +1,5 @@
+plugin: benemon.nomad.nomad
+allocations: true
+namespace: default
+compose:
+  ansible_host: nomad_node.Address

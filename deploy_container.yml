@@ -1,0 +1,52 @@
+- name: Deploy a container to Nomad on the podman driver
+  hosts: localhost
+  gather_facts: false
+  vars:
+    container_port: 80
+    instances: 1
+    job_state: present
+  tasks:
+    - name: Check the required extra vars
+      ansible.builtin.assert:
+        that:
+          - job_name is defined
+          - container_image is defined or job_state == 'absent'
+        fail_msg: Set job_name, and container_image unless job_state is absent.
+
+    - name: Register the job and wait for its deployment
+      benemon.nomad.nomad_job:
+        jobspec: "{{ lookup('ansible.builtin.template', 'container.nomad.hcl.j2') }}"
+      when: job_state == 'present'
+
+    - name: Stop the job and remove it from the server
+      benemon.nomad.nomad_job:
+        name: "{{ job_name }}"
+        state: absent
+        purge: true
+      when: job_state == 'absent'
+
+    - name: Read the job's allocations
+      benemon.nomad.nomad_allocation_info:
+        job: "{{ job_name }}"
+      register: allocs
+      when: job_state == 'present'
+
+    - name: Read each running allocation in full for its ports
+      benemon.nomad.nomad_allocation_info:
+        alloc_id: "{{ item.ID }}"
+      register: running
+      loop: "{{ allocs.allocations | selectattr('ClientStatus', 'eq', 'running') }}"
+      loop_control:
+        label: "{{ item.ID[:8] }}"
+      when: job_state == 'present'
+
+    - name: Report where the container is listening
+      ansible.builtin.debug:
+        msg: "{{ alloc.NodeName }} http://{{ port.HostIP }}:{{ port.Value }}"
+      loop: "{{ running.results }}"
+      loop_control:
+        label: "{{ alloc.ID[:8] }}"
+      vars:
+        alloc: "{{ item.allocations[0] }}"
+        port: "{{ alloc.AllocatedResources.Shared.Ports | selectattr('Label', 'eq', 'http') | first }}"
+      when: job_state == 'present'

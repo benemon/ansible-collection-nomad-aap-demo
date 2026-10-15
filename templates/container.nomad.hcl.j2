@@ -1,0 +1,28 @@
+job "{{ job_name }}" {
+  datacenters = ["*"]
+  type        = "service"
+
+  group "app" {
+    count = {{ instances }}
+
+    network {
+      port "http" {
+        to = {{ container_port }}
+      }
+    }
+
+    task "container" {
+      driver = "podman"
+
+      config {
+        image = "{{ container_image }}"
+        ports = ["http"]
+      }
+
+      resources {
+        cpu    = 200
+        memory = 128
+      }
+    }
+  }
+}
