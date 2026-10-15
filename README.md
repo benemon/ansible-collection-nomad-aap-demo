@@ -9,7 +9,6 @@ collection's inventory plugin lists the Nomad clients and allocations.
 | Path | What it is |
 |---|---|
 | `execution-environment.yml` | ansible-builder v3 definition: AAP 2.7 `ee-minimal-rhel9` plus `benemon.nomad` and `nomadpy[exec]` |
-| `openshift/ee-build.yaml` | ImageStream and binary Docker BuildConfig that build the EE inside the cluster |
 | `deploy_container.yml` | Registers or purges the job and reports each running allocation's address |
 | `templates/container.nomad.hcl.j2` | The jobspec: one group, one podman task, a dynamic port mapped to `container_port` |
 | `inventory/cluster.nomad.yml` | `benemon.nomad.nomad` inventory: client nodes and the allocations of the `default` namespace |
@@ -24,13 +23,10 @@ Red Hat does not support that combination. registry.redhat.io serves no
 `latest` tag, so the base image is pinned by digest.
 
 ```
-ansible-builder create -c context
-oc apply -f openshift/ee-build.yaml
-oc start-build ee-nomad -n aap --from-dir=context --follow
+ansible-builder build -t ee-nomad
 ```
 
-The image lands at `image-registry.openshift-image-registry.svc:5000/aap/ee-nomad:latest`,
-which AAP pods in the same namespace pull without a registry credential.
+Push the image to a registry AAP can pull from.
 
 ## Nomad
 
@@ -40,26 +36,22 @@ nomad acl token create -name aap-demo -type client -policy aap-demo
 ```
 
 The policy allows submitting, reading and listing jobs in `default`, and reading
-nodes for the inventory plugin. The HTTP API needs the cluster CA but no client
-certificate.
+nodes for the inventory plugin.
 
 ## AAP
 
-1. Credential type **Nomad**, kind *Cloud* so it can be attached to an
-   inventory source: paste the inputs and injectors from
-   `aap/nomad-credential-type.yml`. The injectors set `NOMAD_ADDR`,
-   `NOMAD_TOKEN` and `NOMAD_CACERT`, which every plugin in the collection reads
-   when its own options are unset.
-2. Credential of that type: the address, the `aap-demo` token's secret ID, and
-   the CA.
-3. Execution environment: the image above.
-4. Project: this repository.
-5. Inventory with a source *Sourced from a Project*, file
-   `inventory/cluster.nomad.yml`, the Nomad credential and the execution
-   environment.
-6. Job template: inventory above, playbook `deploy_container.yml`, the Nomad
-   credential and the execution environment, with *Prompt on launch* for
-   variables.
+The play expects AAP to hold:
+
+- a credential type of kind *Cloud* with the inputs and injectors in
+  `aap/nomad-credential-type.yml`, and a credential of that type. The
+  injectors set `NOMAD_ADDR`, `NOMAD_TOKEN` and `NOMAD_CACERT`, which every
+  plugin in the collection reads when its own options are unset;
+- the execution environment built above;
+- this repository as a project;
+- an inventory source *Sourced from a Project* on `inventory/cluster.nomad.yml`,
+  with the Nomad credential and the execution environment;
+- a job template on `deploy_container.yml` with the Nomad credential, the
+  execution environment and *Prompt on launch* for variables.
 
 Launch it with:
 
