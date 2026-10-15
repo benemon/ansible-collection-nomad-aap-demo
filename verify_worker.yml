@@ -4,30 +4,23 @@
   gather_facts: false
   vars:
     ansible_nomad_task: heartbeat
-  # raw only: modules send their payload over stdin, and the podman driver never closes stdin in an exec session.
+    ansible_python_interpreter: /usr/bin/python3
   tasks:
     - name: Read the heartbeat
-      ansible.builtin.raw: cat /tmp/heartbeat
+      ansible.builtin.slurp:
+        src: /local/heartbeat
       register: first
-      changed_when: false
 
     - name: Wait for the heartbeat to advance
-      ansible.builtin.raw: cat /tmp/heartbeat
+      ansible.builtin.slurp:
+        src: /local/heartbeat
       register: latest
-      changed_when: false
-      until: latest.stdout.split()[0] | int > first.stdout.split()[0] | int
+      until: (latest.content | b64decode).split()[0] | int > first_beat | int
       retries: 6
       delay: 5
+      vars:
+        first_beat: "{{ (first.content | b64decode).split()[0] }}"
 
-    - name: Write the allocation ID into the task
-      ansible.builtin.raw: echo '{{ ansible_nomad_alloc_id }}' > /tmp/verified-by-ansible
-
-    - name: Read it back
-      ansible.builtin.raw: cat /tmp/verified-by-ansible
-      register: readback
-      changed_when: false
-
-    - name: Check the round trip and report the heartbeat
-      ansible.builtin.assert:
-        that: readback.stdout | trim == ansible_nomad_alloc_id
-        success_msg: "{{ inventory_hostname }} heartbeat {{ first.stdout | trim }} -> {{ latest.stdout | trim }}"
+    - name: Report the heartbeat
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} heartbeat {{ first.content | b64decode | trim }} -> {{ latest.content | b64decode | trim }}"

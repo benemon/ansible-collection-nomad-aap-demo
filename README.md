@@ -12,7 +12,7 @@ collection's inventory plugin lists the Nomad clients and allocations.
 | `deploy_container.yml` | Registers or purges the job and reports each running allocation's address |
 | `templates/container.nomad.hcl.j2` | The jobspec: one group, one podman task, a dynamic port mapped to `container_port` |
 | `deploy_worker.yml` | Registers or purges a heartbeat worker with no exposed ports, in a chosen node pool |
-| `templates/worker.nomad.hcl.j2` | The worker's jobspec: a Python loop that writes a counter and timestamp to `/tmp/heartbeat` every 5 seconds |
+| `templates/worker.nomad.hcl.j2` | The worker's jobspec: a shell loop on the exec driver that writes a counter and timestamp to `/local/heartbeat` every 5 seconds |
 | `verify_worker.yml` | Runs inside the worker's allocations over the `benemon.nomad.nomad_exec` connection and checks the heartbeat advances |
 | `inventory/cluster.nomad.yml` | `benemon.nomad.nomad` inventory: client nodes and the allocations of the `default` namespace |
 | `nomad/aap-demo.policy.hcl` | ACL policy for the token AAP uses |
@@ -78,13 +78,14 @@ is there to show the cluster from AAP and is not a target of this play.
 `job_state`.
 
 `verify_worker.yml` targets the inventory group `nomad_job_<job_name>`, so
-the inventory has to be synced after the worker is deployed; *Update on
+the inventory has to be synced after the worker is deployed. *Update on
 launch* on the inventory source does that. For each allocation it reads the
-heartbeat, waits for the counter to advance, writes the allocation ID into the
-task and reads it back. Pass the same `job_name` to both playbooks; a name
-with characters other than letters, digits and underscores is sanitised in
-the group name.
+heartbeat file and waits for the counter to advance. Pass the same `job_name`
+to both playbooks. Characters other than letters, digits and underscores in
+the name are sanitised in the group name.
 
-The checks use `ansible.builtin.raw`. Modules send their payload over stdin,
-and the podman driver never closes stdin in an exec session, so a module
-task waits until it times out.
+The worker runs on the exec driver, so the modules use the client's own
+`/usr/bin/python3` through the task's chroot. On the podman driver an exec
+session never sees the end of stdin, which is how modules receive their
+payload, so module tasks there wait until they time out. `ansible.builtin.raw`
+still works there.
