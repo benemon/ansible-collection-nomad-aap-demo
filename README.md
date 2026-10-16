@@ -9,9 +9,9 @@ collection's inventory plugin lists the Nomad clients and allocations.
 | Path | What it is |
 |---|---|
 | `execution-environment.yml` | ansible-builder v3 definition: AAP 2.7 `ee-minimal-rhel9` plus `benemon.nomad` and `nomadpy[exec]` |
-| `deploy_container.yml` | Registers or purges the job and reports each running allocation's address |
+| `deploy_container.yml` | Registers the job and reports each running allocation's address |
 | `templates/container.nomad.hcl.j2` | The jobspec: one group, one podman task, a dynamic port mapped to `container_port` |
-| `deploy_worker.yml` | Registers or purges a heartbeat worker with no exposed ports, in a chosen node pool |
+| `deploy_worker.yml` | Registers a heartbeat worker with no exposed ports, in a chosen node pool |
 | `templates/worker.nomad.hcl.j2` | The worker's jobspec: a shell loop on the exec driver that writes a counter and timestamp to `/local/heartbeat` every 5 seconds |
 | `verify_worker.yml` | Runs inside the worker's allocations over the `benemon.nomad.nomad_exec` connection and checks the heartbeat advances |
 | `remove_job.yml` | Stops any job, waits for its allocations to stop, then purges it |
@@ -65,18 +65,16 @@ container_image: docker.io/library/nginx:alpine
 ```
 
 and again with another `job_name` and `container_image` for a second
-container. `job_state: absent` with the same `job_name` stops and purges the
-job. Optional variables are `container_port` (default `80`) and `instances`
-(default `1`).
+container. Optional variables are `container_port` (default `80`) and
+`instances` (default `1`). `remove_job.yml` removes the job.
 
-The play runs on `localhost` and talks only to the Nomad API; the inventory
+The play runs on `localhost` and talks only to the Nomad API. The inventory
 is there to show the cluster from AAP and is not a target of this play.
 
 ## Heartbeat worker
 
 `deploy_worker.yml` runs a worker that opens no ports. Its variables are
-`job_name` (default `heartbeat`), `node_pool` (default `default`) and
-`job_state`.
+`job_name` (default `heartbeat`) and `node_pool` (default `default`).
 
 `verify_worker.yml` targets the inventory group `nomad_job_<job_name>`, so
 the inventory has to be synced after the worker is deployed. *Update on
