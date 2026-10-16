@@ -14,6 +14,7 @@ collection's inventory plugin lists the Nomad clients and allocations.
 | `deploy_worker.yml` | Registers or purges a heartbeat worker with no exposed ports, in a chosen node pool |
 | `templates/worker.nomad.hcl.j2` | The worker's jobspec: a shell loop on the exec driver that writes a counter and timestamp to `/local/heartbeat` every 5 seconds |
 | `verify_worker.yml` | Runs inside the worker's allocations over the `benemon.nomad.nomad_exec` connection and checks the heartbeat advances |
+| `remove_job.yml` | Stops any job, waits for its allocations to stop, then purges it |
 | `inventory/cluster.nomad.yml` | `benemon.nomad.nomad` inventory: client nodes and the allocations of the `default` namespace |
 | `nomad/aap-demo.policy.hcl` | ACL policy for the token AAP uses |
 | `aap/nomad-credential-type.yml` | Inputs and injectors of the AAP credential type that carries the Nomad connection |
@@ -89,3 +90,10 @@ The worker runs on the exec driver, so the modules use the client's own
 session never sees the end of stdin, which is how modules receive their
 payload, so module tasks there wait until they time out. `ansible.builtin.raw`
 still works there.
+
+## Removing a job
+
+`remove_job.yml` takes `job_name` and works on any job, whatever its driver
+or node pool. It stops the job and waits until none of its allocations is
+pending or running, so every task exits within its own `kill_timeout`. Then
+it purges the job. A job that does not exist is left as it is, with no error.

@@ -1,0 +1,28 @@
+- name: Stop a Nomad job, wait for its tasks to exit, then purge it
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Check the required extra vars
+      ansible.builtin.assert:
+        that:
+          - job_name is defined
+        fail_msg: Set job_name as an extra var.
+
+    - name: Stop the job
+      benemon.nomad.nomad_job:
+        name: "{{ job_name }}"
+        state: absent
+
+    - name: Wait for its allocations to stop
+      benemon.nomad.nomad_allocation_info:
+        job: "{{ job_name }}"
+      register: allocs
+      until: allocs.allocations | selectattr('ClientStatus', 'in', ['pending', 'running']) | list | length == 0
+      retries: 60
+      delay: 5
+
+    - name: Purge the job
+      benemon.nomad.nomad_job:
+        name: "{{ job_name }}"
+        state: absent
+        purge: true
