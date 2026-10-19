@@ -14,7 +14,7 @@ dependencies:
   galaxy:
     collections:
       - name: benemon.nomad
-        version: ">=0.2.0"
+        version: ">=0.3.1"
   # benemon.nomad declares python: requirements.txt, so builder pulls nomadpy[exec] from it.
 
 options:
